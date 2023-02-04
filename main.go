@@ -2,11 +2,14 @@ package main
 
 import (
 	"gee"
+	"log"
 	"net/http"
+	"time"
 )
 
 func main() {
 	r := gee.New()
+	r.Use(logger)
 	v1 := r.Group("/v1")
 	{
 		v1.GET("/", func(c *gee.Context) {
@@ -27,6 +30,7 @@ func main() {
 				c.String(http.StatusOK, c.Query("s"))
 			})
 		}
+		//api.Use(apiLogger)
 	}
 	r.GET("/", func(c *gee.Context) {
 		c.HTML(http.StatusOK, "<h1>Welcome!</h1><p>S="+c.Query("s")+"</p>")
@@ -41,4 +45,12 @@ func main() {
 
 	r.Router().Traverse()
 	r.Run(":9999")
+}
+
+func logger(c *gee.Context) {
+	t := time.Now()
+	c.Next()
+	timeInteval := time.Since(t)
+
+	log.Printf("[%d] %s in %v", c.StatusCode, c.Req.RequestURI, timeInteval)
 }

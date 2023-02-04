@@ -20,6 +20,9 @@ type Context struct {
 	Queries map[string]string
 
 	StatusCode int
+	// middleware support
+	handlers []HandleFunc // middleware store
+	index    int          // pointer that indicates how many middlewares have been called
 }
 
 func newContext(w http.ResponseWriter, r *http.Request) *Context {
@@ -28,6 +31,7 @@ func newContext(w http.ResponseWriter, r *http.Request) *Context {
 		Path:   r.URL.Path,
 		Method: r.Method,
 		Writer: w,
+		index:  -1,
 	}
 	c.parseQuery()
 	return &c
@@ -60,6 +64,20 @@ func (c *Context) parseQuery() {
 	}
 }
 
+// Next proceeds to the next middleware
+func (c *Context) Next() {
+	c.index++
+	s := len(c.handlers)
+
+	// this loop is necessary
+	// if a middleware don't call Next(some middlewares need to be executed only before/after request)
+	// this loop will call the next middleware
+	// because Next increments c.index everytime it is called, no repeated middleware will be executed.
+	for ; c.index < s; c.index++ {
+		c.handlers[c.index](c)
+	}
+}
+
 func (c *Context) Param(key string) string {
 	value, _ := c.Params[key]
 	return value
@@ -70,7 +88,11 @@ func (c *Context) SetHeader(key, value string) {
 }
 
 func (c *Context) Status(code int) {
+	if c.Writer.Header().Get("Code") != "" {
+		c.Writer.Header().Set("Code", strconv.Itoa(code))
+	}
 	c.Writer.Header().Add("Code", strconv.Itoa(code))
+	c.StatusCode = code
 }
 
 func (c *Context) HTML(statusCode int, file string) {
